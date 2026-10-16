@@ -1,0 +1,143 @@
+-- โหลด Wind UI Library
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+
+-- สร้างหน้าต่างหลัก (Window)
+local Window = WindUI:CreateWindow({
+    Title = "+1 Keyboard Speed | Pro Hub",
+    Icon = "rbxassetid://6034287593",
+    Author = "Speed Game Hub",
+    Folder = "KeyboardSpeedHub",
+    Size = UDim2.fromOffset(580, 440),
+    Transparent = true,
+    Theme = "Dark",
+    Acrylic = true
+})
+
+-- สร้างแท็บต่างๆ
+local Tabs = {
+    Main = Window:Tab({ Title = "Main Farm & Win", Icon = "zap" }),
+    Speed = Window:Tab({ Title = "Speed Settings", Icon = "activity" })
+}
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+--------------------------------------------------------------------------------
+-- 1. TAB MAIN: ออโต้ฟาร์มความเร็ว & ออโต้ชนะด่านสุดท้าย
+--------------------------------------------------------------------------------
+Tabs.Main:Section({ Title = "Automation System" })
+
+-- 1. ออโต้ฟาร์มความเร็วอัตโนมัติ (กดคลิกหรือกดปุ่มเพิ่มความเร็วในแมพ)
+local autoFarmSpeed = false
+Tabs.Main:Toggle({
+    Title = "ออโต้ฟาร์มความเร็วอัตโนมัติ (+1 Speed)",
+    Default = false,
+    Callback = function(state)
+        autoFarmSpeed = state
+    end
+})
+
+task.spawn(function()
+    while task.wait(0.1) do
+        if autoFarmSpeed then
+            -- จำลองการกดใช้งานคีย์บอร์ดหรือส่ง RemoteEvent ฟาร์มหลักของเกม
+            -- (ขึ้นอยู่กับระบบ Remote ของแมพ โดยทั่วไปจะใช้การคลิกหรือเปิดใช้งานเครื่องมือ)
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool") then
+                LocalPlayer.Character:FindFirstChildOfClass("Tool"):Activate()
+            end
+            
+            -- เผื่อเกมใช้ RemoteEvent ทั่วไปในการเก็บบวกแต้ม
+            pcall(function()
+                for _, v in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+                    if v:IsA("RemoteEvent") and (v.Name:lower():find("click") or v.Name:lower():find("speed") or v.Name:lower():find("keyboard")) then
+                        v:FireServer()
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- 2. ออโต้ยึดวินด่านสุดท้าย (Auto Win Last Stage)
+local autoWinFinal = false
+Tabs.Main:Toggle({
+    Title = "ออโต้วินด่านสุดท้าย (Auto Win Final Stage)",
+    Default = false,
+    Callback = function(state)
+        autoWinFinal = state
+    end
+})
+
+task.spawn(function()
+    while task.wait(1) do
+        if autoWinFinal and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            -- ค้นหาโซนเส้นชัย / Portal ด่านสุดท้าย หรือช็อกโกแลต/ลูกอมชิ้นสุดท้ายของแมพ
+            for _, obj in pairs(Workspace:GetDescendants()) do
+                if obj:IsA("BasePart") and (obj.Name:lower():find("win") or obj.Name:lower():find("finish") or obj.Name:lower():find("portal") or obj.Name:lower():find("end")) then
+                    -- วาร์ปตัวละครไปที่เส้นชัยด่านสุดท้ายทันที
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = obj.CFrame + Vector3.new(0, 3, 0)
+                    break
+                end
+            end
+        end
+    end
+end)
+
+
+--------------------------------------------------------------------------------
+-- 2. TAB SPEED: ปรับความเร็ว 1 - 1000
+--------------------------------------------------------------------------------
+Tabs.Speed:Section({ Title = "Character WalkSpeed Control" })
+
+local customWsEnabled = false
+local customWsValue = 16
+
+Tabs.Speed:Toggle({
+    Title = "เปิดใช้งานปรับความเร็ว (Custom WalkSpeed)",
+    Default = false,
+    Callback = function(state)
+        customWsEnabled = state
+        if not state and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = 16
+        end
+    end
+})
+
+Tabs.Speed:Slider({
+    Title = "ปรับความเร็ว (1 - 1000)",
+    Default = 16,
+    Min = 1,
+    Max = 1000,
+    Step = 1,
+    Callback = function(value)
+        customWsValue = value
+    end
+})
+
+-- ลูปอัปเดตความเร็วตัวละครตลอดเวลา
+RunService.RenderStepped:Connect(function()
+    if customWsEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = customWsValue
+    end
+end)
+
+-- ปุ่มรีเซ็ตความเร็ว
+Tabs.Speed:Button({
+    Title = "รีเซ็ตความเร็วกลับเป็นค่าเริ่มต้น (16)",
+    Callback = function()
+        customWsValue = 16
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = 16
+        end
+        WindUI:Notify({ Title = "Reset", Content = "รีเซ็ตความเร็วสำเร็จ!", Duration = 3 })
+    end
+})
+
+-- แจ้งเตือนเมื่อโหลดสำเร็จ
+WindUI:Notify({
+    Title = "Speed Hub Loaded!",
+    Content = "สคริปต์แมพ +1 คีย์บอร์ด พร้อมใช้งานแล้วครับ!",
+    Duration = 4,
+})
