@@ -1,0 +1,151 @@
+-- โหลด Wind UI Library
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+
+-- สร้างหน้าต่างหลัก (Window)
+local Window = WindUI:CreateWindow({
+    Title = "MVSD Pro Hub | Wind UI",
+    Icon = "rbxassetid://6034287593",
+    Author = "MVSD Developer",
+    Folder = "MVSDWindHub",
+    Size = UDim2.fromOffset(580, 420),
+    Transparent = true,
+    Theme = "Dark",
+    Acrylic = true
+})
+
+-- สร้างแท็บต่างๆ
+local Tabs = {
+    Combat  = Window:Tab({ Title = "Combat & Auto", Icon = "crosshair" }),
+    Visuals = Window:Tab({ Title = "Visuals & ESP", Icon = "eye" }),
+    Camera  = Window:Tab({ Title = "Camera Settings", Icon = "settings" })
+}
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+--------------------------------------------------------------------------------
+-- 1. COMBAT TAB: ยิงคนอัตโนมัติ (Auto Shoot / Silent Aim Target)
+--------------------------------------------------------------------------------
+Tabs.Combat:Section({ Title = "Auto Combat System" })
+
+local autoShootActive = false
+
+Tabs.Combat:Toggle({
+    Title = "ยิงคนอัตโนมัติ (Auto Shoot / Silent Aim)",
+    Default = false,
+    Callback = function(state)
+        autoShootActive = state
+    end
+})
+
+-- ลูปทำงานยิงอัตโนมัติเมื่อเจอฟั่งชันยิงปืนในตัวละคร/กระเป๋า
+task.spawn(function()
+    while task.wait(0.1) do
+        if autoShootActive then
+            pcall(function()
+                local character = LocalPlayer.Character
+                if not character then return end
+
+                -- หา Tool ปืนที่ถืออยู่หรือในกระเป๋า
+                local tool = character:FindFirstChildOfClass("Tool") or LocalPlayer.Backpack:FindFirstChildOfClass("Tool")
+                
+                if tool then
+                    -- หาเป้าหมายผู้เล่นคนอื่นที่สวมบทฝ่ายตรงข้าม/ศัตรู
+                    for _, target in pairs(Players:GetPlayers()) do
+                        if target ~= LocalPlayer and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and target.Character:FindFirstChild("Humanoid") and target.Character.Humanoid.Health > 0 then
+                            
+                            -- สวมใส่ปืนถ้ายังไม่ได้ถือ
+                            if tool.Parent == LocalPlayer.Backpack then
+                                character.Humanoid:EquipTool(tool)
+                            end
+
+                            -- ยิงไปยังตำแหน่งศัตรูทันที
+                            local targetPos = target.Character.HumanoidRootPart.Position
+                            
+                            -- เรียกใช้งาน Event ยิงปืนของแมพ MVSD
+                            if tool:FindFirstChild("Shoot") then
+                                tool.Shoot:FireServer(targetPos)
+                            elseif tool:FindFirstChild("RemoteEvent") then
+                                tool.RemoteEvent:FireServer(targetPos)
+                            else
+                                tool:Activate()
+                            end
+                            break
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+
+--------------------------------------------------------------------------------
+-- 2. VISUALS TAB: มองเห็นคนเป็นสีฟ้า (Cyan / Blue Highlight ESP)
+--------------------------------------------------------------------------------
+Tabs.Visuals:Section({ Title = "Blue ESP Visuals" })
+
+local blueEspActive = false
+local espHighlights = {}
+
+local function ClearESP()
+    for _, hl in pairs(espHighlights) do
+        if hl then hl:Destroy() end
+    end
+    espHighlights = {}
+end
+
+Tabs.Visuals:Toggle({
+    Title = "มองเห็นคนเป็นสีฟ้า (Cyan/Blue ESP)",
+    Default = false,
+    Callback = function(state)
+        blueEspActive = state
+        if not state then ClearESP() end
+    end
+})
+
+-- ลูปอัปเดตสีไฮไลต์สีฟ้า
+task.spawn(function()
+    while task.wait(1) do
+        if blueEspActive then
+            ClearESP()
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    local hl = Instance.new("Highlight")
+                    hl.Parent = player.Character
+                    hl.FillColor = Color3.fromRGB(0, 191, 255) -- สีฟ้า (Deep Sky Blue)
+                    hl.OutlineColor = Color3.fromRGB(0, 255, 255) -- กรอบสีฟ้าสว่าง
+                    hl.FillTransparency = 0.4
+                    hl.OutlineTransparency = 0
+                    table.insert(espHighlights, hl)
+                end
+            end
+        end
+    end
+end)
+
+
+--------------------------------------------------------------------------------
+-- 3. CAMERA TAB: FOV (1-100)
+--------------------------------------------------------------------------------
+Tabs.Camera:Section({ Title = "Field of View Control" })
+
+Tabs.Camera:Slider({
+    Title = "ปรับ FOV (1 - 100)",
+    Default = 70,
+    Min = 1,
+    Max = 100,
+    Step = 1,
+    Callback = function(value)
+        workspace.CurrentCamera.FieldOfView = value
+    end
+})
+
+-- ปุ่มรีเซ็ต FOV กลับค่ามาตรฐาน (70)
+Tabs.Camera:Button({
+    Title = "รีเซ็ต FOV เป็นค่ามาตรฐาน (70)",
+    Callback = function()
+        workspace.CurrentCamera.FieldOfView = 70
+        WindUI:Notify({ Title = "Reset FOV", Content = "รีเซ็ต FOV เป็น 
