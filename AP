@@ -1,0 +1,303 @@
+-- โหลด Maclib UI Library
+local Maclib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Exunys/Maclib/main/Maclib.lua"))()
+
+local Window = Maclib:Window({
+    Title = "MM2 Ultimate Hub | Maclib UI",
+    Subtitle = "Protected & Secure",
+    Size = UDim2.fromOffset(560, 400),
+    Theme = "Dark",
+    Resizable = true,
+})
+
+-- สร้างหมวดหมู่ (Tabs)
+local TabGroup = Window:TabGroup()
+
+local Tabs = {
+    Visuals = TabGroup:Tab("Visuals & ESP"),
+    Combat  = TabGroup:Tab("Combat & Auto"),
+    Misc    = TabGroup:Tab("Movement & Misc")
+}
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+-- ฟังก์ชันตรวจสอบบทบาทและปืนตก
+local function GetRoles()
+    local murderer, sheriff, droppedGun = nil, nil, nil
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            if player.Backpack:FindFirstChild("Knife") or player.Character:FindFirstChild("Knife") then
+                murderer = player
+            elseif player.Backpack:FindFirstChild("Gun") or player.Character:FindFirstChild("Gun") then
+                sheriff = player
+            end
+        end
+    end
+
+    for _, obj in pairs(Workspace:GetChildren()) do
+        if obj.Name == "GunDrop" and obj:FindFirstChild("Handle") then
+            droppedGun = obj
+        end
+    end
+
+    return murderer, sheriff, droppedGun
+end
+
+--------------------------------------------------------------------------------
+-- 1. VISUALS TAB: ดูบทบาท (ฆาตกร:แดง, ประชาชน:เขียว, นายอำเภอ:ฟ้า, ปืน:เหลือง)
+--------------------------------------------------------------------------------
+local VisualsSection = Tabs.Visuals:Section("ESP & Roles Settings")
+
+local roleEspEnabled = false
+local highlights = {}
+
+local function ClearESP()
+    for _, hl in pairs(highlights) do
+        if hl then hl:Destroy() end
+    end
+    highlights = {}
+end
+
+VisualsSection:Toggle({
+    Name = "Role & Gun ESP (ฆาตกร:แดง | ประชาชน:เขียว | นายอำเภอ:ฟ้า | ปืน:เหลือง)",
+    Default = false,
+    Callback = function(state)
+        roleEspEnabled = state
+        if not state then ClearESP() end
+    end
+})
+
+task.spawn(function()
+    while task.wait(1) do
+        if roleEspEnabled then
+            ClearESP()
+            local murderer, sheriff, droppedGun = GetRoles()
+
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    local hl = Instance.new("Highlight")
+                    hl.Parent = player.Character
+                    hl.FillTransparency = 0.4
+                    hl.OutlineTransparency = 0
+
+                    if player == murderer then
+                        hl.FillColor = Color3.fromRGB(255, 0, 0) -- ฆาตกร (สีแดง)
+                        hl.OutlineColor = Color3.fromRGB(255, 0, 0)
+                    elseif player == sheriff then
+                        hl.FillColor = Color3.fromRGB(0, 150, 255) -- นายอำเภอ (สีฟ้า)
+                        hl.OutlineColor = Color3.fromRGB(0, 150, 255)
+                    else
+                        hl.FillColor = Color3.fromRGB(0, 255, 0) -- ผู้บริสุทธิ์ (สีเขียว)
+                        hl.OutlineColor = Color3.fromRGB(0, 255, 0)
+                    end
+                    table.insert(highlights, hl)
+                end
+            end
+
+            if droppedGun and droppedGun:FindFirstChild("Handle") then
+                local gunHl = Instance.new("Highlight")
+                gunHl.Parent = droppedGun
+                gunHl.FillColor = Color3.fromRGB(255, 255, 0) -- ปืน (สีเหลือง)
+                gunHl.OutlineColor = Color3.fromRGB(255, 255, 0)
+                gunHl.FillTransparency = 0.2
+                table.insert(highlights, gunHl)
+            end
+        end
+    end
+end)
+
+
+--------------------------------------------------------------------------------
+-- 2. COMBAT TAB: ยิงฆาตกรอัตโนมัติ, ปามีด, ฟันอัตโนมัติ
+--------------------------------------------------------------------------------
+local CombatSection = Tabs.Combat:Section("Combat Automation")
+
+-- ออโต้ยิงฆาตกร (เล็งแต่ฆาตกร ยิงทางไหนก็โดน)
+local autoAimShoot = false
+CombatSection:Toggle({
+    Name = "ออโต้ยิงฆาตกร (เล็งแม่นอัตโนมัติ)",
+    Default = false,
+    Callback = function(state)
+        autoAimShoot = state
+    end
+})
+
+task.spawn(function()
+    while task.wait(0.3) do
+        if autoAimShoot then
+            local murderer, _, _ = GetRoles()
+            local gun = LocalPlayer.Backpack:FindFirstChild("Gun") or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Gun"))
+            
+            if gun and murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
+                if LocalPlayer.Backpack:FindFirstChild("Gun") then
+                    LocalPlayer.Character.Humanoid:EquipTool(gun)
+                end
+                task.wait(0.05)
+                gun.Shoot:FireServer(murderer.Character.HumanoidRootPart.Position)
+            end
+        end
+    end
+end)
+
+-- ออโต้ปามีดโดนผู้เล่น
+local autoThrowActive = false
+CombatSection:Toggle({
+    Name = "ออโต้ปามีดใส่ผู้เล่น (Auto Throw Knife)",
+    Default = false,
+    Callback = function(state)
+        autoThrowActive = state
+    end
+})
+
+task.spawn(function()
+    while task.wait(0.4) do
+        if autoThrowActive then
+            local knife = LocalPlayer.Backpack:FindFirstChild("Knife") or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Knife"))
+            if knife then
+                for _, target in pairs(Players:GetPlayers()) do
+                    if target ~= LocalPlayer and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and target.Character.Humanoid.Health > 0 then
+                        if LocalPlayer.Backpack:FindFirstChild("Knife") then
+                            LocalPlayer.Character.Humanoid:EquipTool(knife)
+                        end
+                        task.wait(0.05)
+                        knife.Throw:FireServer(target.Character.HumanoidRootPart.Position)
+                        break
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ออโต้ฟันผู้เล่น (Kill Aura)
+local autoSlashActive = false
+CombatSection:Toggle({
+    Name = "ออโต้ฟันผู้เล่นรอบตัว (Auto Kill Aura)",
+    Default = false,
+    Callback = function(state)
+        autoSlashActive = state
+    end
+})
+
+task.spawn(function()
+    while task.wait(0.2) do
+        if autoSlashActive then
+            local knife = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Knife")
+            if knife and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                for _, target in pairs(Players:GetPlayers()) do
+                    if target ~= LocalPlayer and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                        local dist = (LocalPlayer.Character.HumanoidRootPart.Position - target.Character.HumanoidRootPart.Position).Magnitude
+                        if dist <= 18 then
+                            knife:Activate()
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+
+--------------------------------------------------------------------------------
+-- 3. MISC TAB: ความเร็ว (1-100), ออโต้เก็บปืนวาร์ปกลับ, วาร์ป, กันตาย
+--------------------------------------------------------------------------------
+local MiscSection = Tabs.Misc:Section("Movement & Utilities")
+
+-- ความเร็ว (1-100)
+local speedEnabled = false
+local speedVal = 16
+
+MiscSection:Toggle({
+    Name = "เปิดใช้งานความเร็ว (WalkSpeed 1-100)",
+    Default = false,
+    Callback = function(state)
+        speedEnabled = state
+        if not state and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = 16
+        end
+    end
+})
+
+MiscSection:Slider({
+    Name = "ปรับความเร็ว",
+    Min = 1,
+    Max = 100,
+    Default = 16,
+    Callback = function(value)
+        speedVal = value
+    end
+})
+
+RunService.RenderStepped:Connect(function()
+    if speedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = speedVal
+    end
+end)
+
+-- ออโต้เก็บปืนแล้ววาร์ปไปที่เดิม
+local autoGrabGun = false
+MiscSection:Toggle({
+    Name = "ออโต้เก็บปืนแล้ววาร์ปกลับตำแหน่งเดิม",
+    Default = false,
+    Callback = function(state)
+        autoGrabGun = state
+    end
+})
+
+task.spawn(function()
+    while task.wait(0.5) do
+        if autoGrabGun then
+            local _, _, droppedGun = GetRoles()
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            
+            if droppedGun and droppedGun:FindFirstChild("Handle") and hrp then
+                local originalPos = hrp.CFrame
+                hrp.CFrame = droppedGun.Handle.CFrame
+                task.wait(0.3)
+                hrp.CFrame = originalPos
+            end
+        end
+    end
+end)
+
+-- ระบบกันตาย (Anti-Void / Anti-Death / Godmode เบื้องต้น)
+local antiDeath = false
+MiscSection:Toggle({
+    Name = "ระบบกันตาย / ป้องกันการตกแมพ (Anti-Void)",
+    Default = false,
+    Callback = function(state)
+        antiDeath = state
+        task.spawn(function()
+            while antiDeath do
+                task.wait(1)
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    if LocalPlayer.Character.HumanoidRootPart.Position.Y < -50 then
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(0, 50, 0)
+                    end
+                end
+            end
+        end)
+    end
+})
+
+-- ปุ่มวาร์ปสุ่มไปหาผู้เล่นในแมพ
+MiscSection:Button({
+    Name = "วาร์ปไปหาผู้เล่นคนอื่นแบบสุ่ม",
+    Callback = function()
+        local plrs = Players:GetPlayers()
+        local target = plrs[math.random(1, #plrs)]
+        if target ~= LocalPlayer and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+        end
+    end
+})
+
+-- แจ้งเตือนโหลดสำเร็จ
+Maclib:Notify({
+    Title = "MM2 Hub Loaded",
+    Content = "สคริปต์ Maclib UI พร้อมใช้งานแล้วครับ!",
+    Duration = 5,
+})
